@@ -2,7 +2,7 @@
 session_start();
 
 // Hash MD5 dari 'lu babu'
-$password_hash = '822cb54cce0221ce4f5ff7f68c74fbbf';
+$password_hash = 'c6a20bcf3ef78a1541ad23598cb295c8';
 
 // Proses Logout
 if (isset($_GET['action']) && $_GET['action'] === 'logout') {
